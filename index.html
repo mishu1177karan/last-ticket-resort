@@ -34,6 +34,7 @@
     <div class="bar">
       <h2 class="section-title">Live board</h2>
       <input class="search" id="q" type="search" placeholder="Search events" aria-label="Search events">
+      <select id="cat" aria-label="Category"><option value="">All categories</option></select>
       <select id="city" aria-label="City"><option value="">All cities</option></select>
     </div>
     <div class="notice" id="board-status">Loading the board…</div>
@@ -51,7 +52,7 @@
       <div class="field"><label for="f-date">Event date</label><input id="f-date" type="date"></div>
       <div class="field"><label for="f-city">City</label><input id="f-city" maxlength="40" placeholder="Pune"></div>
       <div class="field"><label for="f-category">Category</label>
-        <select id="f-category"><option>Concert</option><option>Comedy</option><option>Sports</option><option>Movie</option><option>Theatre</option><option>College fest</option><option>Other</option></select></div>
+        <input id="f-category" list="cat-list" maxlength="30" placeholder="Type or pick, e.g. Concert"><datalist id="cat-list"></datalist></div>
       <div class="field"><label for="f-qty">Number of tickets</label><input id="f-qty" type="number" min="1" max="50" value="1"></div>
       <div class="field buy-only"><label for="f-min">Min price per ticket (₹)</label><input id="f-min" type="number" min="0" step="1"></div>
       <div class="field buy-only"><label for="f-max">Max price per ticket (₹)</label><input id="f-max" type="number" min="0" step="1"></div>
@@ -92,7 +93,8 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const inr=n=>n==null||n===""?"—":"₹"+Number(n).toLocaleString("en-IN");
 const today=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)};
 let events=[],side="BUY";
-const ui={q:"",city:""};
+const ui={q:"",city:"",cat:""};
+const DEFAULT_CATS=["Concert","Comedy","Sports","Movie","Theatre","College fest","Workshop","Gaming","Merch","Other"];
 
 // side switch
 function setSide(s){side=s;document.querySelectorAll(".side-switch button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.side===s));
@@ -102,7 +104,7 @@ document.querySelectorAll(".side-switch button").forEach(b=>b.onclick=()=>setSid
 document.querySelectorAll("[data-side-link]").forEach(a=>a.addEventListener("click",()=>setSide(a.dataset.sideLink)));
 setSide("BUY");$("f-date").min=today();
 
-function prefill(i,s){const e=events[i];if(!e)return;setSide(s);$("f-event").value=e.event;$("f-date").value=e.date;$("f-city").value=e.city;$("f-category").value=e.category||"Other";$("quote").scrollIntoView({behavior:"smooth"});$("f-qty").focus({preventScroll:true})}
+function prefill(i,s){const e=events[i];if(!e)return;setSide(s);$("f-event").value=e.event;$("f-date").value=e.date;$("f-city").value=e.city;$("f-category").value=e.category||"";$("quote").scrollIntoView({behavior:"smooth"});$("f-qty").focus({preventScroll:true})}
 
 function dateParts(d){if(!d)return{day:"—",mon:"",wk:""};const x=new Date(d+"T00:00");return{day:x.getDate(),mon:x.toLocaleString("en-IN",{month:"short"}).toUpperCase()+" "+String(x.getFullYear()).slice(2),wk:x.toLocaleString("en-IN",{weekday:"short"}).toUpperCase()}}
 function signal(e){
@@ -114,8 +116,11 @@ function signal(e){
 function render(){
   const cities=[...new Set(events.map(e=>e.city).filter(Boolean))].sort();
   $("city").innerHTML=`<option value="">All cities</option>`+cities.map(c=>`<option ${c===ui.city?"selected":""}>${esc(c)}</option>`).join("");
+  const cats=[...new Set(events.map(e=>String(e.category||"").trim()).filter(Boolean))].sort();
+  $("cat").innerHTML=`<option value="">All categories</option>`+cats.map(c=>`<option ${c===ui.cat?"selected":""}>${esc(c)}</option>`).join("");
+  $("cat-list").innerHTML=[...new Set([...cats,...DEFAULT_CATS])].map(c=>`<option value="${esc(c)}">`).join("");
   $("event-list").innerHTML=events.map(e=>`<option value="${esc(e.event)}">`).join("");
-  const list=events.map((e,i)=>({e,i})).filter(({e})=>(!ui.city||e.city===ui.city)&&(!ui.q||(e.event+" "+e.city).toLowerCase().includes(ui.q)))
+  const list=events.map((e,i)=>({e,i})).filter(({e})=>(!ui.city||e.city===ui.city)&&(!ui.cat||e.category===ui.cat)&&(!ui.q||(e.event+" "+e.city).toLowerCase().includes(ui.q)))
     .sort((a,b)=>String(a.e.date).localeCompare(String(b.e.date)));
   const max=Math.max(1,...list.map(({e})=>Math.max(e.demand,e.supply)));
   $("grid").innerHTML=list.length?list.map(({e,i})=>{const dp=dateParts(e.date);return `
@@ -140,6 +145,7 @@ function render(){
 }
 $("q").oninput=e=>{ui.q=e.target.value.trim().toLowerCase();render()};
 $("city").onchange=e=>{ui.city=e.target.value;render()};
+$("cat").onchange=e=>{ui.cat=e.target.value;render()};
 
 async function load(){
   if(!API||API.startsWith("PASTE")){$("board-status").textContent="The board isn't connected yet.";$("board-status").className="notice err";render();return}
@@ -158,6 +164,7 @@ $("submit").onclick=async()=>{
   const body={action:"quote",side,event:v("event"),date:v("date"),city:v("city"),category:v("category"),qty:v("qty"),
     minPrice:v("min"),maxPrice:v("max"),askPrice:v("ask"),faceValue:v("face"),name:v("name"),phone:v("phone"),notes:v("notes"),website:v("website")};
   if(!body.event) return formStatus("Add the event name.","err");
+  if(!body.category) return formStatus("Add a category. Type anything, e.g. Concert or Sports.","err");
   if(!body.date||body.date<today()) return formStatus("Add an upcoming event date.","err");
   if(!(Number(body.qty)>=1)) return formStatus("Add how many tickets.","err");
   if(side==="BUY"&&(body.minPrice===""||body.maxPrice===""||Number(body.maxPrice)<Number(body.minPrice))) return formStatus("Give your price range per ticket. Max must be at least min.","err");
