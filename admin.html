@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Matching Desk · Last Ticket Resort</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <a class="brand" href="./">Last <span>Ticket</span> Resort</a>
+    <nav><a href="./">Public board</a><a href="#" id="logout">Lock desk</a></nav>
+  </div>
+</header>
+<main class="wrap">
+  <section id="login" style="padding-block:40px;max-width:420px">
+    <h2 class="section-title">Matching desk</h2>
+    <p style="color:var(--muted)">Enter your admin key from the Settings tab of your Google Sheet.</p>
+    <div class="field"><label for="key">Admin key</label><input id="key" type="password" autocomplete="current-password"></div>
+    <p><button class="btn" id="unlock">Open desk</button></p>
+    <div class="notice err" id="login-err" hidden></div>
+  </section>
+
+  <section id="desk" hidden>
+    <div class="bar">
+      <h2 class="section-title">Matching desk</h2>
+      <label class="field" style="flex-direction:row;align-items:center;gap:6px"><span class="hint">Flat fee per side ₹</span><input id="fee" type="number" min="0" style="width:90px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg)"></label>
+      <button class="btn ghost sm" id="save-fee">Save fee</button>
+      <button class="btn sm" id="refresh">Refresh</button>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div id="events"></div>
+    <h2 class="section-title" style="margin-top:24px">Deals</h2>
+    <p class="hint">Proposed → Meeting set → Done (fee collected). Cancelling a deal puts the tickets back on both quotes.</p>
+    <div class="tbl-wrap" style="margin-bottom:40px"><table id="matches"></table></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="config.js"></script>
+<script>
+const API=window.LTR_CONFIG.API_URL;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const inr=n=>n==null||n===""?"—":"₹"+Number(n).toLocaleString("en-IN");
+let KEY="";try{KEY=localStorage.getItem("ltr_key")||""}catch(_){}
+let data={quotes:[],matches:[],fee:0};
+function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2600)}
+const norm=s=>String(s||"").toLowerCase().replace(/\s+/g," ").trim();
+const ekey=q=>[norm(q.event),q.date,norm(q.city)].join("|");
+function wa(phone,text){const d=String(phone).replace(/\D/g,"");const n=d.length===10?"91"+d:d;return `<a href="https://wa.me/${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">${esc(phone)}</a>`}
+
+async function post(body){
+  const r=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({...body,key:KEY})});
+  const d=await r.json();if(!d.ok) throw new Error(d.error);return d;
+}
+async function load(){
+  try{
+    const r=await fetch(API+"?action=admin&key="+encodeURIComponent(KEY));const d=await r.json();
+    if(!d.ok) throw new Error(d.error);
+    data=d;$("login").hidden=true;$("desk").hidden=false;$("fee").value=d.fee;render();
+  }catch(err){$("login").hidden=false;$("desk").hidden=true;$("login-err").hidden=false;$("login-err").textContent=err.message}
+}
+$("unlock").onclick=()=>{KEY=$("key").value.trim();try{localStorage.setItem("ltr_key",KEY)}catch(_){}load()};
+$("key").onkeydown=e=>{if(e.key==="Enter")$("unlock").click()};
+$("logout").onclick=e=>{e.preventDefault();KEY="";try{localStorage.removeItem("ltr_key")}catch(_){}location.reload()};
+$("refresh").onclick=load;
+$("save-fee").onclick=async()=>{try{await post({action:"setFee",fee:$("fee").value});toast("Fee saved");load()}catch(e){toast(e.message)}};
+
+/* Greedy matching: highest buyer max vs lowest seller ask, one clearing price for the batch. */
+function suggest(buys,sells){
+  const B=buys.map(q=>({...q,left:Number(q.openQty)})).sort((a,b)=>b.maxPrice-a.maxPrice);
+  const S=sells.map(q=>({...q,left:Number(q.openQty)})).sort((a,b)=>a.askPrice-b.askPrice);
+  const pairs=[];let i=0,j=0;
+  while(i<B.length&&j<S.length&&Number(B[i].maxPrice)>=Number(S[j].askPrice)){
+    const n=Math.min(B[i].left,S[j].left);
+    pairs.push({buy:B[i],sell:S[j],qty:n});
+    B[i].left-=n;S[j].left-=n;if(!B[i].left)i++;if(!S[j].left)j++;
+  }
+  if(!pairs.length) return {pairs,price:null};
+  const hiAsk=Math.max(...pairs.map(p=>Number(p.sell.askPrice))),loBid=Math.min(...pairs.map(p=>Number(p.buy.maxPrice)));
+  return {pairs,price:Math.round((hiAsk+loBid)/2),hiAsk,loBid};
+}
+
+function quoteRow(q){
+  const flag=q.side==="SELL"&&q.faceValue&&Number(q.askPrice)>Number(q.faceValue)*1.2?` <span class="pill" style="color:var(--bad)">${Math.round((q.askPrice/q.faceValue-1)*100)}% over face</span>`:"";
+  const price=q.side==="BUY"?`${inr(q.minPrice)}–${inr(q.maxPrice)}`:inr(q.askPrice)+flag;
+  return `<tr><td>${esc(q.id)}</td><td>${esc(q.openQty)}/${esc(q.qty)}</td><td>${price}</td><td>${esc(q.name)}</td><td>${wa(q.phone,"Hi "+q.name+", this is Last Ticket Resort about your quote for "+q.event+".")}</td><td style="white-space:normal;min-width:160px">${esc(q.notes)}</td>
+    <td><button class="btn ghost sm" data-cancel="${esc(q.id)}">Cancel</button></td></tr>`;
+}
+function render(){
+  const open=data.quotes.filter(q=>q.status==="OPEN"&&Number(q.openQty)>0);
+  const groups={};open.forEach(q=>{(groups[ekey(q)]=groups[ekey(q)]||{event:q.event,date:q.date,city:q.city,buys:[],sells:[]})[q.side==="BUY"?"buys":"sells"].push(q)});
+  const done=data.matches.filter(m=>m.status==="DONE");
+  const live=data.matches.filter(m=>m.status==="PROPOSED"||m.status==="MEETING_SET");
+  const earned=done.reduce((s,m)=>s+Number(m.fee)*2,0);
+  $("kpis").innerHTML=[["Open buy quotes",open.filter(q=>q.side==="BUY").length],["Open sell quotes",open.filter(q=>q.side==="SELL").length],["Deals in progress",live.length],["Deals done",done.length],["Fees earned",inr(earned)]]
+    .map(([l,v])=>`<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join("");
+  const keys=Object.keys(groups).sort((a,b)=>String(groups[a].date).localeCompare(String(groups[b].date)));
+  $("events").innerHTML=keys.length?keys.map(k=>{const g=groups[k];const s=suggest(g.buys,g.sells);return `
+    <div class="admin-event">
+      <h3>${esc(g.event)} · ${esc(g.date)} · ${esc(g.city)}</h3>
+      <div class="two">
+        <div><p class="hint buy-c" style="margin:0 0 4px;font-weight:700">BUYERS (${g.buys.reduce((a,q)=>a+Number(q.openQty),0)} wanted)</p>
+          <div class="tbl-wrap"><table><tr><th>ID</th><th>Open/Qty</th><th>Range</th><th>Name</th><th>WhatsApp</th><th>Notes</th><th></th></tr>${g.buys.map(quoteRow).join("")||`<tr><td colspan="7">No buyers yet</td></tr>`}</table></div></div>
+        <div><p class="hint sell-c" style="margin:0 0 4px;font-weight:700">SELLERS (${g.sells.reduce((a,q)=>a+Number(q.openQty),0)} offered)</p>
+          <div class="tbl-wrap"><table><tr><th>ID</th><th>Open/Qty</th><th>Ask</th><th>Name</th><th>WhatsApp</th><th>Notes</th><th></th></tr>${g.sells.map(quoteRow).join("")||`<tr><td colspan="7">No sellers yet</td></tr>`}</table></div></div>
+      </div>
+      ${s.pairs.length?`<div class="suggest"><b>Suggested matches</b> <span class="hint">Clearing price ${inr(s.price)} (between highest ask ${inr(s.hiAsk)} and lowest buyer max ${inr(s.loBid)}). Edit the price before confirming if you agreed a different one.</span>
+        ${s.pairs.map(p=>`<div class="suggest-row"><span>${esc(p.buy.name)} (${esc(p.buy.id)}) buys <b>${p.qty}</b> from ${esc(p.sell.name)} (${esc(p.sell.id)}) at ₹</span>
+          <input type="number" min="0" value="${s.price}" aria-label="Deal price"><button class="btn sm" data-match='${esc(JSON.stringify({buyId:p.buy.id,sellId:p.sell.id,qty:p.qty}))}'>Confirm match</button></div>`).join("")}</div>`
+      :`<p class="hint">No overlap yet: ${g.buys.length&&g.sells.length?"the best buyer max is below the lowest ask. Call them to negotiate.":"waiting for the other side."}</p>`}
+    </div>`}).join(""):`<div class="empty"><h3>No open quotes</h3><p>New quotes from the public board appear here grouped by event.</p></div>`;
+  const statuses=["PROPOSED","MEETING_SET","DONE","CANCELLED"];
+  const byId=Object.fromEntries(data.quotes.map(q=>[q.id,q]));
+  $("matches").innerHTML=`<tr><th>Deal</th><th>Event</th><th>Buyer</th><th>Seller</th><th>Qty</th><th>Price</th><th>Fee/side</th><th>Status</th></tr>`+
+    (data.matches.slice().reverse().map(m=>{const b=byId[m.buyId]||{},s=byId[m.sellId]||{};return `<tr><td>${esc(m.id)}</td><td>${esc(m.event)} · ${esc(m.date)}</td>
+      <td>${esc(b.name)} ${b.phone?wa(b.phone,"Hi "+b.name+", Last Ticket Resort here. Your match for "+m.event+": "+m.qty+" ticket(s) at ₹"+m.price+" each."):""}</td>
+      <td>${esc(s.name)} ${s.phone?wa(s.phone,"Hi "+s.name+", Last Ticket Resort here. We found a buyer for "+m.qty+" of your "+m.event+" ticket(s) at ₹"+m.price+" each."):""}</td>
+      <td>${esc(m.qty)}</td><td>${inr(m.price)}</td><td>${inr(m.fee)}</td>
+      <td><select data-mstatus="${esc(m.id)}">${statuses.map(x=>`<option ${x===m.status?"selected":""}>${x}</option>`).join("")}</select></td></tr>`}).join("")||`<tr><td colspan="8">No deals yet</td></tr>`);
+}
+document.addEventListener("click",async e=>{
+  const m=e.target.closest("[data-match]");
+  if(m){const p=JSON.parse(m.dataset.match);p.price=m.previousElementSibling.value;m.disabled=true;
+    try{await post({action:"match",...p});toast("Match saved. WhatsApp both sides from the Deals table.");load()}catch(err){toast(err.message);m.disabled=false}return}
+  const c=e.target.closest("[data-cancel]");
+  if(c){if(c.dataset.sure!=="1"){c.dataset.sure="1";c.textContent="Tap again";return}
+    try{await post({action:"quoteStatus",id:c.dataset.cancel,status:"CANCELLED"});toast("Quote cancelled");load()}catch(err){toast(err.message)}}
+});
+document.addEventListener("change",async e=>{
+  const s=e.target.closest("[data-mstatus]");if(!s)return;
+  try{await post({action:"matchStatus",id:s.dataset.mstatus,status:s.value});toast("Deal updated");load()}catch(err){toast(err.message)}
+});
+if(KEY) load(); else $("login").hidden=false;
+</script>
+</body>
+</html>

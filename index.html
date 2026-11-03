@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Last Ticket Resort</title>
+<meta name="description" content="Spare tickets or need one last minute? Send your quote. We match buyers and sellers and meet you in person.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <a class="brand" href="./">Last <span>Ticket</span> Resort</a>
+    <nav><a href="#board">Board</a><a href="#quote">Send a quote</a><a href="#rules">How it works</a></nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <h2>Sold out? <em>Not here.</em></h2>
+      <p style="margin-top:14px">Tell us how many tickets you want or have, and at what price. We show live demand and supply, match buyers with sellers, and meet both of you in person to hand over.</p>
+      <p style="margin-top:14px"><a class="btn buy" href="#quote" data-side-link="BUY">I want tickets</a> <a class="btn sell" href="#quote" data-side-link="SELL">I have spare tickets</a></p>
+    </div>
+    <ol class="steps">
+      <li><span><b>Send a quote.</b> Buyers give a price range per ticket, sellers give their asking price.</span></li>
+      <li><span><b>Watch the board.</b> Every event shows how many tickets are wanted and offered, without names.</span></li>
+      <li><span><b>We match you.</b> When a buyer's top price meets a seller's ask, we call both of you.</span></li>
+      <li><span><b>Meet in person.</b> We coordinate the handover. A flat fee of <b id="fee-inline">₹99</b> applies only when your deal goes through.</span></li>
+    </ol>
+  </section>
+
+  <section id="board">
+    <div class="bar">
+      <h2 class="section-title">Live board</h2>
+      <input class="search" id="q" type="search" placeholder="Search events" aria-label="Search events">
+      <select id="city" aria-label="City"><option value="">All cities</option></select>
+    </div>
+    <div class="notice" id="board-status">Loading the board…</div>
+    <div class="grid" id="grid" style="margin-top:14px"></div>
+  </section>
+
+  <section id="quote" class="quote-box">
+    <h2 class="section-title">Send a quote</h2>
+    <div class="side-switch" role="group" aria-label="Buy or sell">
+      <button type="button" data-side="BUY" aria-pressed="true">I want to buy</button>
+      <button type="button" data-side="SELL" aria-pressed="false">I want to sell</button>
+    </div>
+    <form class="form" id="form" novalidate>
+      <div class="field w2"><label for="f-event">Event</label><input id="f-event" list="event-list" maxlength="80" placeholder="e.g. Diljit Dosanjh, Pune"><datalist id="event-list"></datalist></div>
+      <div class="field"><label for="f-date">Event date</label><input id="f-date" type="date"></div>
+      <div class="field"><label for="f-city">City</label><input id="f-city" maxlength="40" placeholder="Pune"></div>
+      <div class="field"><label for="f-category">Category</label>
+        <select id="f-category"><option>Concert</option><option>Comedy</option><option>Sports</option><option>Movie</option><option>Theatre</option><option>College fest</option><option>Other</option></select></div>
+      <div class="field"><label for="f-qty">Number of tickets</label><input id="f-qty" type="number" min="1" max="50" value="1"></div>
+      <div class="field buy-only"><label for="f-min">Min price per ticket (₹)</label><input id="f-min" type="number" min="0" step="1"></div>
+      <div class="field buy-only"><label for="f-max">Max price per ticket (₹)</label><input id="f-max" type="number" min="0" step="1"></div>
+      <div class="field sell-only" hidden><label for="f-ask">Asking price per ticket (₹)</label><input id="f-ask" type="number" min="0" step="1"></div>
+      <div class="field sell-only" hidden><label for="f-face">Face value per ticket (₹)</label><input id="f-face" type="number" min="0" step="1"></div>
+      <div class="field w2"><label for="f-name">Your name</label><input id="f-name" maxlength="60" autocomplete="name"></div>
+      <div class="field w2"><label for="f-phone">WhatsApp number</label><input id="f-phone" type="tel" maxlength="20" autocomplete="tel" placeholder="+91 98xxxxxxxx"><span class="hint">Only we see this. It is never shown on the board.</span></div>
+      <div class="field w4"><label for="f-notes">Notes (optional)</label><textarea id="f-notes" maxlength="300" placeholder="Section or seat, how the ticket transfers, when you can meet…"></textarea></div>
+      <div class="hp" aria-hidden="true"><label for="f-website">Website</label><input id="f-website" tabindex="-1" autocomplete="off"></div>
+      <label class="check w4"><input type="checkbox" id="f-agree"> <span>I agree to be contacted on WhatsApp about this quote and to pay the flat fee if a deal is completed.</span></label>
+    </form>
+    <div class="form-foot">
+      <button class="btn" id="submit" type="button">Send quote</button>
+      <div class="notice" id="form-status" hidden></div>
+    </div>
+  </section>
+
+  <section class="rules" id="rules">
+    <h3>How it works and house rules</h3>
+    <ul>
+      <li>We don't buy or hold tickets. We match a buyer's quote with a seller's quote and coordinate the handover in person.</li>
+      <li>A deal happens when a buyer's maximum price is at or above a seller's asking price. We agree one price with both of you before meeting.</li>
+      <li>The flat fee is charged only on a completed deal. Nothing is charged for sending a quote.</li>
+      <li>Transfer tickets through the booking app's official transfer option where it exists, so the ticket lands in the buyer's account.</li>
+      <li>Sell at or near face value. We may decline quotes priced far above face value.</li>
+      <li>Train and flight tickets are tied to the passenger's name and can't be traded here.</li>
+    </ul>
+  </section>
+  <footer id="footer">Last Ticket Resort · <a href="admin.html">Desk</a></footer>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="config.js"></script>
+<script>
+const API=window.LTR_CONFIG.API_URL;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const inr=n=>n==null||n===""?"—":"₹"+Number(n).toLocaleString("en-IN");
+const today=()=>{const d=new Date();d.setMinutes(d.getMinutes()-d.getTimezoneOffset());return d.toISOString().slice(0,10)};
+let events=[],side="BUY";
+const ui={q:"",city:""};
+
+// side switch
+function setSide(s){side=s;document.querySelectorAll(".side-switch button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.side===s));
+  document.querySelectorAll(".buy-only").forEach(e=>e.hidden=s!=="BUY");document.querySelectorAll(".sell-only").forEach(e=>e.hidden=s!=="SELL");
+  $("submit").textContent=s==="BUY"?"Send buy quote":"Send sell quote"}
+document.querySelectorAll(".side-switch button").forEach(b=>b.onclick=()=>setSide(b.dataset.side));
+document.querySelectorAll("[data-side-link]").forEach(a=>a.addEventListener("click",()=>setSide(a.dataset.sideLink)));
+setSide("BUY");$("f-date").min=today();
+
+function prefill(i,s){const e=events[i];if(!e)return;setSide(s);$("f-event").value=e.event;$("f-date").value=e.date;$("f-city").value=e.city;$("f-category").value=e.category||"Other";$("quote").scrollIntoView({behavior:"smooth"});$("f-qty").focus({preventScroll:true})}
+
+function dateParts(d){if(!d)return{day:"—",mon:"",wk:""};const x=new Date(d+"T00:00");return{day:x.getDate(),mon:x.toLocaleString("en-IN",{month:"short"}).toUpperCase()+" "+String(x.getFullYear()).slice(2),wk:x.toLocaleString("en-IN",{weekday:"short"}).toUpperCase()}}
+function signal(e){
+  if(e.demand&&e.supply&&e.bestBid>=e.bestAsk) return `<span class="pill" style="color:var(--accent)">Prices overlap · match likely</span>`;
+  if(e.demand>e.supply) return `<span class="pill buy-c">More buyers than sellers</span>`;
+  if(e.supply>e.demand) return `<span class="pill sell-c">More sellers than buyers</span>`;
+  return `<span class="pill" style="color:var(--muted)">Balanced</span>`;
+}
+function render(){
+  const cities=[...new Set(events.map(e=>e.city).filter(Boolean))].sort();
+  $("city").innerHTML=`<option value="">All cities</option>`+cities.map(c=>`<option ${c===ui.city?"selected":""}>${esc(c)}</option>`).join("");
+  $("event-list").innerHTML=events.map(e=>`<option value="${esc(e.event)}">`).join("");
+  const list=events.map((e,i)=>({e,i})).filter(({e})=>(!ui.city||e.city===ui.city)&&(!ui.q||(e.event+" "+e.city).toLowerCase().includes(ui.q)))
+    .sort((a,b)=>String(a.e.date).localeCompare(String(b.e.date)));
+  const max=Math.max(1,...list.map(({e})=>Math.max(e.demand,e.supply)));
+  $("grid").innerHTML=list.length?list.map(({e,i})=>{const dp=dateParts(e.date);return `
+    <article class="event">
+      <div class="e-main">
+        <div class="e-cat">${esc(e.category||"Event")}</div>
+        <h3 class="e-title">${esc(e.event)}</h3>
+        ${signal(e)}
+        <div class="depth">
+          <div class="depth-row"><span class="lbl buy-c">Wanted</span><span class="track"><span class="fill buy" style="display:block;width:${e.demand/max*100}%"></span></span><span class="n">${e.demand}</span></div>
+          <div class="depth-row"><span class="lbl sell-c">Offered</span><span class="track"><span class="fill sell" style="display:block;width:${e.supply/max*100}%"></span></span><span class="n">${e.supply}</span></div>
+        </div>
+        <div class="quotes">
+          <div>Buyers pay up to<b class="buy-c">${inr(e.bestBid)}</b>${e.bidLow!=null?`<span>range from ${inr(e.bidLow)}</span>`:""}</div>
+          <div>Sellers ask from<b class="sell-c">${inr(e.bestAsk)}</b>${e.lastPrice?`<span>last deal ${inr(e.lastPrice)}</span>`:""}</div>
+        </div>
+        <div class="e-actions"><button class="btn buy sm" onclick="prefill(${i},'BUY')">Quote to buy</button><button class="btn sell sm" onclick="prefill(${i},'SELL')">Quote to sell</button></div>
+      </div>
+      <div class="stub"><span class="wk">${dp.wk}</span><span class="day">${dp.day}</span><span class="mon">${dp.mon}</span><span class="city">${esc(e.city)}</span></div>
+    </article>`}).join(""):
+    `<div class="empty"><h3>${events.length?"No events match":"The board is empty"}</h3><p>${events.length?"Try another city or search.":"Be the first. Send a quote below and your event appears here."}</p></div>`;
+}
+$("q").oninput=e=>{ui.q=e.target.value.trim().toLowerCase();render()};
+$("city").onchange=e=>{ui.city=e.target.value;render()};
+
+async function load(){
+  if(!API||API.startsWith("PASTE")){$("board-status").textContent="The board isn't connected yet.";$("board-status").className="notice err";render();return}
+  try{
+    const r=await fetch(API+"?action=board");const d=await r.json();
+    if(!d.ok) throw new Error(d.error);
+    events=d.events||[];
+    if(d.fee!=null) $("fee-inline").textContent="₹"+d.fee;
+    $("board-status").hidden=true;render();
+  }catch(err){$("board-status").textContent="Couldn't load the board. Refresh to try again.";$("board-status").className="notice err";render()}
+}
+
+function formStatus(msg,kind){const s=$("form-status");s.hidden=false;s.textContent=msg;s.className="notice "+(kind||"")}
+$("form").addEventListener("submit",e=>{e.preventDefault();$("submit").click()});
+$("submit").onclick=async()=>{
+  const v=k=>$("f-"+k).value.trim();
+  const body={action:"quote",side,event:v("event"),date:v("date"),city:v("city"),category:v("category"),qty:v("qty"),
+    minPrice:v("min"),maxPrice:v("max"),askPrice:v("ask"),faceValue:v("face"),name:v("name"),phone:v("phone"),notes:v("notes"),website:v("website")};
+  if(!body.event) return formStatus("Add the event name.","err");
+  if(!body.date||body.date<today()) return formStatus("Add an upcoming event date.","err");
+  if(!(Number(body.qty)>=1)) return formStatus("Add how many tickets.","err");
+  if(side==="BUY"&&(body.minPrice===""||body.maxPrice===""||Number(body.maxPrice)<Number(body.minPrice))) return formStatus("Give your price range per ticket. Max must be at least min.","err");
+  if(side==="SELL"&&body.askPrice==="") return formStatus("Add your asking price per ticket.","err");
+  if(!body.name||!/^[+\d][\d\s-]{8,18}$/.test(body.phone)) return formStatus("Add your name and a valid WhatsApp number.","err");
+  if(!$("f-agree").checked) return formStatus("Tick the box to agree to be contacted.","err");
+  $("submit").disabled=true;formStatus("Sending…");
+  try{
+    const r=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!d.ok) throw new Error(d.error||"Something went wrong.");
+    formStatus(`Quote ${d.id} received. We'll WhatsApp you when there's a match.`,"ok");
+    ["qty","min","max","ask","face","notes"].forEach(k=>$("f-"+k).value=k==="qty"?1:"");
+    load();
+  }catch(err){formStatus(err.message.includes("Failed to fetch")?"Couldn't reach us. Check your connection and try again.":err.message,"err")}
+  finally{$("submit").disabled=false}
+};
+load();
+</script>
+</body>
+</html>
