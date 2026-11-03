@@ -27,9 +27,7 @@
     <ol class="steps">
       <li><span><b>Send a quote.</b> Buyers give a price range per ticket, sellers give their asking price.</span></li>
       <li><span><b>Watch the board.</b> Every event shows how many tickets are wanted and offered, without names.</span></li>
-      <li><span><b>We match you.</b> When a buyer's top price meets a seller's ask, we call both of you.</span></li>
-      <li><span><b>Meet in person.</b> We coordinate the handover. A flat fee of <b id="fee-inline">₹99</b> applies only when your deal goes through.</span></li>
-    </ol>
+      <li><span><b>We match you.</b> When a buyer's top price meets a seller's ask, we call both of you.</span></li>    </ol>
   </section>
 
   <section id="board">
@@ -149,7 +147,6 @@ async function load(){
     const r=await fetch(API+"?action=board");const d=await r.json();
     if(!d.ok) throw new Error(d.error);
     events=d.events||[];
-    if(d.fee!=null) $("fee-inline").textContent="₹"+d.fee;
     $("board-status").hidden=true;render();
   }catch(err){$("board-status").textContent="Couldn't load the board. Refresh to try again.";$("board-status").className="notice err";render()}
 }
