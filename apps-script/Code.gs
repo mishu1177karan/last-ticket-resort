@@ -11,7 +11,7 @@
 
 var QUOTE_COLS = ['id','created','side','event','category','city','date','qty','openQty',
   'minPrice','maxPrice','askPrice','faceValue','name','phone','notes','status','fromPlace','toPlace'];
-var MATCH_COLS = ['id','created','event','date','buyId','sellId','qty','price','fee','status','note'];
+var MATCH_COLS = ['id','created','event','date','buyId','sellId','qty','price','fee','status','note','sellPrice','margin'];
 
 /* ---------- one-time setup: run this once from the editor ---------- */
 function setup() {
@@ -75,9 +75,9 @@ function doGet(e) {
   try {
     if (p.action === 'admin') {
       if (!isAdmin_(p.key)) return json_({ ok: false, error: 'Wrong admin key.' });
-      return json_({ ok: true, fee: Number(getSetting_('FEE')) || 0, quotes: rows_('Quotes', QUOTE_COLS), matches: rows_('Matches', MATCH_COLS) });
+      return json_({ ok: true, fee: Number(getSetting_('FEE')) || 0, quotes: rows_('Quotes', QUOTE_COLS), matches: rows_('Matches', MATCH_COLS), events: board_() });
     }
-    return json_({ ok: true, fee: Number(getSetting_('FEE')) || 0, events: board_() });
+    return json_({ ok: true, events: board_().map(function (e) { return { event: e.event, date: e.date, city: e.city, category: e.category, fromPlace: e.fromPlace, toPlace: e.toPlace, demand: e.demand, supply: e.supply, buyers: e.buyers, sellers: e.sellers }; }) });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
   }
@@ -173,15 +173,18 @@ function findQuote_(id) {
 
 function addMatch_(b) {
   var buy = findQuote_(b.buyId), sell = findQuote_(b.sellId);
-  var qty = num_(b.qty), price = num_(b.price);
+  var qty = num_(b.qty), price = num_(b.buyPrice != null ? b.buyPrice : b.price), sellPrice = num_(b.sellPrice != null ? b.sellPrice : price);
   if (!buy || !sell || buy.side !== 'BUY' || sell.side !== 'SELL') return { ok: false, error: 'Quote not found.' };
   if (buy.status !== 'OPEN' || sell.status !== 'OPEN') return { ok: false, error: 'One of these quotes is no longer open.' };
   if (!qty || qty > Number(buy.openQty) || qty > Number(sell.openQty)) return { ok: false, error: 'Quantity is more than what is open.' };
-  if (price == null) return { ok: false, error: 'Add the deal price.' };
+  if (price == null || sellPrice == null) return { ok: false, error: 'Add the buyer and seller prices.' };
+  if (sellPrice > price) return { ok: false, error: 'Seller price is above the buyer price.' };
+  var msh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Matches');
+  if (msh.getLastColumn() < MATCH_COLS.length) msh.getRange(1, 1, 1, MATCH_COLS.length).setValues([MATCH_COLS]).setFontWeight('bold');
   var id = 'M-' + Utilities.getUuid().slice(0, 8).toUpperCase();
   var fee = Number(getSetting_('FEE')) || 0;
   SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Matches').appendRow(
-    [id, new Date(), buy.event, buy.date, buy.id, sell.id, qty, price, fee, 'PROPOSED', clean_(b.note, 200)]);
+    [id, new Date(), buy.event, buy.date, buy.id, sell.id, qty, price, fee, 'PROPOSED', clean_(b.note, 200), sellPrice, (price - sellPrice) * qty]);
   [buy, sell].forEach(function (q) {
     var left = Number(q.openQty) - qty;
     setCell_('Quotes', QUOTE_COLS, q._row, 'openQty', left);
