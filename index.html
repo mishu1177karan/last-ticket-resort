@@ -33,13 +33,20 @@
 
 <section id="board">
     <div class="bar">
-      <h2 class="section-title">Live board</h2>
-      <input class="search" id="q" type="search" placeholder="Search events" aria-label="Search events">
-      <select id="cat" aria-label="Category"><option value="">All categories</option></select>
-      <select id="city" aria-label="City"><option value="">All cities</option></select>
+      <h2 class="section-title">Most demanded today</h2>
     </div>
-        <div class="notice" id="board-status">Loading the board…</div>
-    <div class="grid" id="grid" style="margin-top:14px"></div>
+    <div class="movers-bar">
+      <div class="tabs" role="tablist" aria-label="Sort board">
+        <button class="tab" role="tab" data-tab="wanted" aria-selected="true">Most wanted</button>
+        <button class="tab" role="tab" data-tab="offered" aria-selected="false">Most offered</button>
+        <button class="tab" role="tab" data-tab="gap" aria-selected="false">Short supply</button>
+      </div>
+      <select id="cat" class="pill-select" aria-label="Category"><option value="">All categories</option></select>
+      <select id="city" class="pill-select" aria-label="City"><option value="">All cities</option></select>
+      <input class="search" id="q" type="search" placeholder="Search" aria-label="Search events">
+    </div>
+    <div class="notice" id="board-status">Loading the board…</div>
+    <div class="movers" id="grid"></div>
   </section>
 
   <section id="quote" class="quote-box">
@@ -109,38 +116,41 @@ setSide("BUY");$("f-date").min=today();
 
 function prefill(i,s){const e=events[i];if(!e)return;setSide(s);$("f-event").value=e.event;$("f-date").value=e.date;$("f-city").value=e.city;$("f-category").value=e.category||"";$("f-from").value=e.fromPlace||"";$("f-to").value=e.toPlace||"";$("quote").scrollIntoView({behavior:"smooth"});$("f-qty").focus({preventScroll:true})}
 const ui={q:"",city:"",cat:""};
-function dateParts(d){if(!d)return{day:"—",mon:"",wk:""};const x=new Date(d+"T00:00");return{day:x.getDate(),mon:x.toLocaleString("en-IN",{month:"short"}).toUpperCase()+" "+String(x.getFullYear()).slice(2),wk:x.toLocaleString("en-IN",{weekday:"short"}).toUpperCase()}}
-function signal(e){
-  if(e.demand>e.supply) return `<span class="pill buy-c">More buyers than sellers</span>`;
-  if(e.supply>e.demand) return `<span class="pill sell-c">More sellers than buyers</span>`;
-  return `<span class="pill" style="color:var(--muted)">Balanced</span>`;
+function dateLabel(d){if(!d)return"";const x=new Date(d+"T00:00");return x.toLocaleString("en-IN",{weekday:"short",day:"numeric",month:"short"})}
+function cum(a){let t=0;return (a||[]).map(v=>t+=Number(v)||0)}
+function spark(daily,cls){
+  const p=cum(daily);if(!p.length)return"";const W=124,H=30,max=Math.max(1,...p),min=Math.min(...p);
+  const pts=p.map((v,i)=>[(i/(p.length-1||1))*W,H-3-((v-min)/((max-min)||1))*(H-8)]);
+  return `<svg class="spark ${cls}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-hidden="true"><line x1="0" y1="${H-1}" x2="${W}" y2="${H-1}" class="base"/><polyline points="${pts.map(q=>q.map(n=>n.toFixed(1)).join(",")).join(" ")}"/></svg>`;
 }
+function initials(c){return String(c||"?").trim().split(/\s+/).slice(0,2).map(w=>w[0]).join("").toUpperCase()}
+let tab="wanted";
+document.querySelectorAll(".tabs .tab").forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll(".tabs .tab").forEach(x=>x.setAttribute("aria-selected",x===b));render()});
 function render(){
   const cities=[...new Set(events.map(e=>e.city).filter(Boolean))].sort();
   $("city").innerHTML=`<option value="">All cities</option>`+cities.map(c=>`<option ${c===ui.city?"selected":""}>${esc(c)}</option>`).join("");
   const cats=[...new Set(events.map(e=>String(e.category||"").trim()).filter(Boolean))].sort();
   $("cat").innerHTML=`<option value="">All categories</option>`+cats.map(c=>`<option ${c===ui.cat?"selected":""}>${esc(c)}</option>`).join("");
-  const list=events.map((e,i)=>({e,i})).filter(({e})=>(!ui.city||e.city===ui.city)&&(!ui.cat||e.category===ui.cat)&&(!ui.q||(e.event+" "+e.city+" "+(e.fromPlace||"")+" "+(e.toPlace||"")).toLowerCase().includes(ui.q)))
-    .sort((a,b)=>String(a.e.date).localeCompare(String(b.e.date)));
-  $("cat-list").innerHTML=[...new Set([...events.map(e=>String(e.category||"").trim()).filter(Boolean),...DEFAULT_CATS])].map(c=>`<option value="${esc(c)}">`).join("");
+  $("cat-list").innerHTML=[...new Set([...cats,...DEFAULT_CATS])].map(c=>`<option value="${esc(c)}">`).join("");
   $("event-list").innerHTML=[...new Set(events.map(e=>e.event))].map(e=>`<option value="${esc(e)}">`).join("");
-  const max=Math.max(1,...list.map(({e})=>Math.max(e.demand,e.supply)));
-  $("grid").innerHTML=list.length?list.map(({e,i})=>{const dp=dateParts(e.date);return `
-    <article class="event">
-      <div class="e-main">
-        <div class="e-cat">${esc(e.category||"Event")}</div>
-        <h3 class="e-title">${esc(e.event)}</h3>
-        ${e.fromPlace?`<div class="e-route">${esc(e.fromPlace)} <span aria-hidden="true">→</span><span class="sr"> to </span> ${esc(e.toPlace)}</div>`:""}
-        ${signal(e)}
-        <div class="depth">
-          <div class="depth-row"><span class="lbl buy-c">Wanted</span><span class="track"><span class="fill buy" style="display:block;width:${e.demand/max*100}%"></span></span><span class="n">${e.demand}</span></div>
-          <div class="depth-row"><span class="lbl sell-c">Offered</span><span class="track"><span class="fill sell" style="display:block;width:${e.supply/max*100}%"></span></span><span class="n">${e.supply}</span></div>
-        </div>
-        <div class="e-actions"><button class="btn buy sm" onclick="prefill(${i},'BUY')">Quote to buy</button><button class="btn sell sm" onclick="prefill(${i},'SELL')">Quote to sell</button></div>
-      </div>
-      <div class="stub"><span class="wk">${dp.wk}</span><span class="day">${dp.day}</span><span class="mon">${dp.mon}</span><span class="city">${esc(e.city)}</span></div>
-    </article>`}).join(""):
-    `<div class="empty"><h3>${events.length?"No events match":"The board is empty"}</h3><p>${events.length?"Try another city or search.":"Be the first. Send a quote below and your event appears here."}</p></div>`;
+  const key={wanted:e=>e.demand,offered:e=>e.supply,gap:e=>e.demand-e.supply}[tab];
+  const list=events.map((e,i)=>({e,i})).filter(({e})=>(!ui.city||e.city===ui.city)&&(!ui.cat||e.category===ui.cat)&&(!ui.q||(e.event+" "+e.city+" "+(e.fromPlace||"")+" "+(e.toPlace||"")).toLowerCase().includes(ui.q)))
+    .filter(({e})=>tab==="offered"?e.supply>0:tab==="gap"?e.demand>e.supply:e.demand>0)
+    .sort((a,b)=>key(b.e)-key(a.e)||String(a.e.date).localeCompare(String(b.e.date)));
+  const off=tab==="offered";
+  const head=`<div class="mv-row mv-head"><span>Event</span><span class="mv-trend"></span><span class="num">${off?"Tickets offered (7D)":tab==="gap"?"Wanted vs offered":"Tickets wanted (7D)"}</span><span class="num mv-vol">${off?"Sellers":"Buyers"}</span><span class="mv-act"></span></div>`;
+  $("grid").innerHTML=list.length?head+list.map(({e,i})=>{
+    const daily=off?e.supplyDaily:e.demandDaily, today=(daily||[])[6]||0;
+    const big=tab==="gap"?`${e.demand} <span class="vs">vs</span> ${e.supply}`:(off?e.supply:e.demand);
+    const sub=tab==="gap"?`${e.demand-e.supply} short`:(today?`+${today} today`:"no change today");
+    return `<div class="mv-row">
+      <span class="mv-ev"><span class="mv-badge" aria-hidden="true">${esc(initials(e.category))}</span><span class="mv-name"><b>${esc(e.event)}</b><small>${esc(e.category||"")}${e.fromPlace?` · ${esc(e.fromPlace)} → ${esc(e.toPlace)}`:""} · ${esc(dateLabel(e.date))}${e.city?` · ${esc(e.city)}`:""}</small></span></span>
+      <span class="mv-trend">${spark(daily,off?"sell":"buy")}</span>
+      <span class="num"><b class="mv-big">${big}</b><small class="${off?"sell-c":"buy-c"}">${sub}</small></span>
+      <span class="num mv-vol">${off?e.sellers:e.buyers}</span>
+      <span class="mv-act"><button class="btn buy sm" onclick="prefill(${i},'BUY')">Buy</button><button class="btn sell sm" onclick="prefill(${i},'SELL')">Sell</button></span>
+    </div>`}).join(""):
+    `<div class="empty"><h3>${events.length?"Nothing here yet":"The board is empty"}</h3><p>${events.length?"Try another tab, category or city.":"Be the first. Send a quote below and your event appears here."}</p></div>`;
 }
 $("q").oninput=e=>{ui.q=e.target.value.trim().toLowerCase();render()};
 $("city").onchange=e=>{ui.city=e.target.value;render()};
