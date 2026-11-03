@@ -77,7 +77,7 @@ function doGet(e) {
       if (!isAdmin_(p.key)) return json_({ ok: false, error: 'Wrong admin key.' });
       return json_({ ok: true, fee: Number(getSetting_('FEE')) || 0, quotes: rows_('Quotes', QUOTE_COLS), matches: rows_('Matches', MATCH_COLS), events: board_() });
     }
-    return json_({ ok: true, events: board_().map(function (e) { return { event: e.event, date: e.date, city: e.city, category: e.category, fromPlace: e.fromPlace, toPlace: e.toPlace, demand: e.demand, supply: e.supply, buyers: e.buyers, sellers: e.sellers }; }) });
+    return json_({ ok: true, events: board_().map(function (e) { return { event: e.event, date: e.date, city: e.city, category: e.category, fromPlace: e.fromPlace, toPlace: e.toPlace, demand: e.demand, supply: e.supply, buyers: e.buyers, sellers: e.sellers, demandDaily: e.demandDaily, supplyDaily: e.supplyDaily }; }) });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
   }
@@ -106,6 +106,15 @@ function board_() {
   matches.forEach(function (m) {
     var k = norm_(m.event) + '|' + m.date + '|';
     for (var key in ev) if (key.indexOf(k) === 0) { ev[key].lastPrice = Number(m.price); ev[key].matched += Number(m.qty); }
+  });
+  var days = [];
+  for (var d = 6; d >= 0; d--) days.push(Utilities.formatDate(new Date(Date.now() - d * 86400000), 'Asia/Kolkata', 'yyyy-MM-dd'));
+  Object.keys(ev).forEach(function (k) { ev[k].demandDaily = days.map(function () { return 0; }); ev[k].supplyDaily = days.map(function () { return 0; }); });
+  rows_('Quotes', QUOTE_COLS).forEach(function (q) {
+    if (q.status === 'CANCELLED') return;
+    var e = ev[eventKey_(q)]; if (!e) return;
+    var i = days.indexOf(String(q.created).slice(0, 10)); if (i < 0) return;
+    if (q.side === 'BUY') e.demandDaily[i] += Number(q.qty); else e.supplyDaily[i] += Number(q.qty);
   });
   return Object.keys(ev).map(function (k) { return ev[k]; });
 }
