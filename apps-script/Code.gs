@@ -10,7 +10,7 @@
  */
 
 var QUOTE_COLS = ['id','created','side','event','category','city','date','qty','openQty',
-  'minPrice','maxPrice','askPrice','faceValue','name','phone','notes','status'];
+  'minPrice','maxPrice','askPrice','faceValue','name','phone','notes','status','fromPlace','toPlace'];
 var MATCH_COLS = ['id','created','event','date','buyId','sellId','qty','price','fee','status','note'];
 
 /* ---------- one-time setup: run this once from the editor ---------- */
@@ -66,7 +66,7 @@ function clean_(s, n) { return String(s == null ? '' : s).replace(/[\u0000-\u001
 function num_(x) { if (x === '' || x == null) return null; var n = Number(x); return isFinite(n) && n >= 0 ? Math.round(n) : null; }
 function today_() { return Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyy-MM-dd'); }
 function norm_(s) { return String(s).toLowerCase().replace(/\s+/g, ' ').trim(); }
-function eventKey_(q) { return [norm_(q.event), q.date, norm_(q.city)].join('|'); }
+function eventKey_(q) { return [norm_(q.event), q.date, norm_(q.city), norm_(q.fromPlace || ''), norm_(q.toPlace || '')].join('|'); }
 function isAdmin_(key) { return key && String(key) === String(getSetting_('ADMIN_KEY')); }
 
 /* ---------- GET: public board / admin data ---------- */
@@ -91,7 +91,7 @@ function board_() {
   var ev = {};
   quotes.forEach(function (q) {
     var k = eventKey_(q);
-    var e = ev[k] || (ev[k] = { event: q.event, date: q.date, city: q.city, category: q.category,
+    var e = ev[k] || (ev[k] = { event: q.event, date: q.date, city: q.city, category: q.category, fromPlace: q.fromPlace || '', toPlace: q.toPlace || '',
       demand: 0, supply: 0, buyers: 0, sellers: 0, bestBid: null, bestAsk: null, bidLow: null, lastPrice: null, matched: 0 });
     var n = Number(q.openQty);
     if (q.side === 'BUY') {
@@ -132,13 +132,16 @@ function doPost(e) {
 
 function addQuote_(b) {
   if (b.website) return { ok: true }; // honeypot: bots fill hidden field
+  ensureQuoteHeader_();
   var side = b.side === 'SELL' ? 'SELL' : 'BUY';
   var q = {
     event: clean_(b.event), category: clean_(b.category, 30), city: clean_(b.city, 40), date: clean_(b.date, 10),
     qty: num_(b.qty), minPrice: num_(b.minPrice), maxPrice: num_(b.maxPrice), askPrice: num_(b.askPrice),
-    faceValue: num_(b.faceValue), name: clean_(b.name, 60), phone: clean_(b.phone, 20), notes: clean_(b.notes, 300)
+    faceValue: num_(b.faceValue), name: clean_(b.name, 60), phone: clean_(b.phone, 20), notes: clean_(b.notes, 300),
+    fromPlace: clean_(b.fromPlace, 40), toPlace: clean_(b.toPlace, 40)
   };
-  if (!q.event) return { ok: false, error: 'Add the event name.' };
+  if (!q.event) return { ok: false, error: 'Add the event or purpose.' };
+  if (!!q.fromPlace !== !!q.toPlace) return { ok: false, error: 'Fill in both From and To, or leave both empty.' };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(q.date) || q.date < today_()) return { ok: false, error: 'Add an upcoming event date.' };
   if (!q.qty || q.qty > 50) return { ok: false, error: 'Number of tickets must be between 1 and 50.' };
   if (!q.name || !/^[+\d][\d\s-]{8,18}$/.test(q.phone)) return { ok: false, error: 'Add your name and a valid phone number.' };
@@ -152,9 +155,14 @@ function addQuote_(b) {
   }
   var id = (side === 'BUY' ? 'B-' : 'S-') + Utilities.getUuid().slice(0, 8).toUpperCase();
   var row = [id, new Date(), side, q.event, q.category, q.city, q.date, q.qty, q.qty,
-    q.minPrice, q.maxPrice, q.askPrice, q.faceValue == null ? '' : q.faceValue, q.name, "'" + q.phone, q.notes, 'OPEN'];
+    q.minPrice, q.maxPrice, q.askPrice, q.faceValue == null ? '' : q.faceValue, q.name, "'" + q.phone, q.notes, 'OPEN', q.fromPlace, q.toPlace];
   SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Quotes').appendRow(row);
   return { ok: true, id: id };
+}
+
+function ensureQuoteHeader_() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Quotes');
+  if (sh.getLastColumn() < QUOTE_COLS.length) sh.getRange(1, 1, 1, QUOTE_COLS.length).setValues([QUOTE_COLS]).setFontWeight('bold');
 }
 
 function findQuote_(id) {
