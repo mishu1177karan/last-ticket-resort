@@ -48,8 +48,8 @@
       <button type="button" data-side="SELL" aria-pressed="false">I want to sell</button>
     </div>
     <form class="form" id="form" novalidate>
-      <div class="field w2"><label for="f-event">Event</label><input id="f-event" list="event-list" maxlength="80" placeholder="e.g. Diljit Dosanjh, Pune"><datalist id="event-list"></datalist></div>
-      <div class="field"><label for="f-date">Event date</label><input id="f-date" type="date"></div>
+      <div class="field w2"><label for="f-event">Event / Purpose</label><input id="f-event" list="event-list" maxlength="80" placeholder="e.g. Diljit Dosanjh concert, or Pune–Goa bus"><datalist id="event-list"></datalist></div>
+      <div class="field"><label for="f-date">Date</label><input id="f-date" type="date"></div>
       <div class="field"><label for="f-city">City</label><input id="f-city" maxlength="40" placeholder="Pune"></div>
       <div class="field"><label for="f-category">Category</label>
         <input id="f-category" list="cat-list" maxlength="30" placeholder="Type or pick, e.g. Concert"><datalist id="cat-list"></datalist></div>
@@ -58,6 +58,8 @@
       <div class="field buy-only"><label for="f-max">Max price per ticket (₹)</label><input id="f-max" type="number" min="0" step="1"></div>
       <div class="field sell-only" hidden><label for="f-ask">Asking price per ticket (₹)</label><input id="f-ask" type="number" min="0" step="1"></div>
       <div class="field sell-only" hidden><label for="f-face">Face value per ticket (₹)</label><input id="f-face" type="number" min="0" step="1"></div>
+      <div class="field w2"><label for="f-from">From (travel only)</label><input id="f-from" maxlength="40" placeholder="e.g. Pune"><span class="hint">For travel tickets like a private bus. Leave empty otherwise.</span></div>
+      <div class="field w2"><label for="f-to">To (travel only)</label><input id="f-to" maxlength="40" placeholder="e.g. Goa"></div>
       <div class="field w2"><label for="f-name">Your name</label><input id="f-name" maxlength="60" autocomplete="name"></div>
       <div class="field w2"><label for="f-phone">WhatsApp number</label><input id="f-phone" type="tel" maxlength="20" autocomplete="tel" placeholder="+91 98xxxxxxxx"><span class="hint">Only we see this. It is never shown on the board.</span></div>
       <div class="field w4"><label for="f-notes">Notes (optional)</label><textarea id="f-notes" maxlength="300" placeholder="Section or seat, how the ticket transfers, when you can meet…"></textarea></div>
@@ -78,6 +80,7 @@
       <li>The flat fee is charged only on a completed deal. Nothing is charged for sending a quote.</li>
       <li>Transfer tickets through the booking app's official transfer option where it exists, so the ticket lands in the buyer's account.</li>
       <li>Sell at or near face value. We may decline quotes priced far above face value.</li>
+      <li>For private bus tickets, check that the operator allows a change of passenger name before you list.</li>
       <li>Train and flight tickets are tied to the passenger's name and can't be traded here.</li>
     </ul>
   </section>
@@ -104,7 +107,7 @@ document.querySelectorAll(".side-switch button").forEach(b=>b.onclick=()=>setSid
 document.querySelectorAll("[data-side-link]").forEach(a=>a.addEventListener("click",()=>setSide(a.dataset.sideLink)));
 setSide("BUY");$("f-date").min=today();
 
-function prefill(i,s){const e=events[i];if(!e)return;setSide(s);$("f-event").value=e.event;$("f-date").value=e.date;$("f-city").value=e.city;$("f-category").value=e.category||"";$("quote").scrollIntoView({behavior:"smooth"});$("f-qty").focus({preventScroll:true})}
+function prefill(i,s){const e=events[i];if(!e)return;setSide(s);$("f-event").value=e.event;$("f-date").value=e.date;$("f-city").value=e.city;$("f-category").value=e.category||"";$("f-from").value=e.fromPlace||"";$("f-to").value=e.toPlace||"";$("quote").scrollIntoView({behavior:"smooth"});$("f-qty").focus({preventScroll:true})}
 
 function dateParts(d){if(!d)return{day:"—",mon:"",wk:""};const x=new Date(d+"T00:00");return{day:x.getDate(),mon:x.toLocaleString("en-IN",{month:"short"}).toUpperCase()+" "+String(x.getFullYear()).slice(2),wk:x.toLocaleString("en-IN",{weekday:"short"}).toUpperCase()}}
 function signal(e){
@@ -120,7 +123,7 @@ function render(){
   $("cat").innerHTML=`<option value="">All categories</option>`+cats.map(c=>`<option ${c===ui.cat?"selected":""}>${esc(c)}</option>`).join("");
   $("cat-list").innerHTML=[...new Set([...cats,...DEFAULT_CATS])].map(c=>`<option value="${esc(c)}">`).join("");
   $("event-list").innerHTML=events.map(e=>`<option value="${esc(e.event)}">`).join("");
-  const list=events.map((e,i)=>({e,i})).filter(({e})=>(!ui.city||e.city===ui.city)&&(!ui.cat||e.category===ui.cat)&&(!ui.q||(e.event+" "+e.city).toLowerCase().includes(ui.q)))
+  const list=events.map((e,i)=>({e,i})).filter(({e})=>(!ui.city||e.city===ui.city)&&(!ui.cat||e.category===ui.cat)&&(!ui.q||(e.event+" "+e.city+" "+(e.fromPlace||"")+" "+(e.toPlace||"")).toLowerCase().includes(ui.q)))
     .sort((a,b)=>String(a.e.date).localeCompare(String(b.e.date)));
   const max=Math.max(1,...list.map(({e})=>Math.max(e.demand,e.supply)));
   $("grid").innerHTML=list.length?list.map(({e,i})=>{const dp=dateParts(e.date);return `
@@ -128,6 +131,7 @@ function render(){
       <div class="e-main">
         <div class="e-cat">${esc(e.category||"Event")}</div>
         <h3 class="e-title">${esc(e.event)}</h3>
+        ${e.fromPlace?`<div class="e-route">${esc(e.fromPlace)} <span aria-hidden="true">→</span><span class="sr"> to </span> ${esc(e.toPlace)}</div>`:""}
         ${signal(e)}
         <div class="depth">
           <div class="depth-row"><span class="lbl buy-c">Wanted</span><span class="track"><span class="fill buy" style="display:block;width:${e.demand/max*100}%"></span></span><span class="n">${e.demand}</span></div>
@@ -162,10 +166,11 @@ $("form").addEventListener("submit",e=>{e.preventDefault();$("submit").click()})
 $("submit").onclick=async()=>{
   const v=k=>$("f-"+k).value.trim();
   const body={action:"quote",side,event:v("event"),date:v("date"),city:v("city"),category:v("category"),qty:v("qty"),
-    minPrice:v("min"),maxPrice:v("max"),askPrice:v("ask"),faceValue:v("face"),name:v("name"),phone:v("phone"),notes:v("notes"),website:v("website")};
-  if(!body.event) return formStatus("Add the event name.","err");
+    minPrice:v("min"),maxPrice:v("max"),askPrice:v("ask"),faceValue:v("face"),name:v("name"),phone:v("phone"),notes:v("notes"),website:v("website"),fromPlace:v("from"),toPlace:v("to")};
+  if(!body.event) return formStatus("Add the event or purpose.","err");
+  if(!!body.fromPlace!==!!body.toPlace) return formStatus("Fill in both From and To, or leave both empty.","err");
   if(!body.category) return formStatus("Add a category. Type anything, e.g. Concert or Sports.","err");
-  if(!body.date||body.date<today()) return formStatus("Add an upcoming event date.","err");
+  if(!body.date||body.date<today()) return formStatus("Add an upcoming date.","err");
   if(!(Number(body.qty)>=1)) return formStatus("Add how many tickets.","err");
   if(side==="BUY"&&(body.minPrice===""||body.maxPrice===""||Number(body.maxPrice)<Number(body.minPrice))) return formStatus("Give your price range per ticket. Max must be at least min.","err");
   if(side==="SELL"&&body.askPrice==="") return formStatus("Add your asking price per ticket.","err");
